@@ -1,0 +1,190 @@
+{
+  "name": "AI Job Email Monitor.2",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## AI Job Email Monitor\n\nWatches Gmail inbox, classifies each new email with OpenAI, and sends an Arabic Telegram alert only for job-related emails.\n\nSetup required:\n- Gmail Trigger → connect Gmail (OAuth2)\n- AI Recruitment Analysis → connect OpenAI\n- Send Telegram Alert → connect Telegram bot + set your chat ID",
+        "height": 312,
+        "width": 284
+      },
+      "id": "b4f68212-eb96-4c18-acd6-e197ecbd9018",
+      "name": "Sticky Note 3e89dbb6",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2768,
+        -464
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "includeSpamTrash": false,
+          "includeDrafts": false,
+          "readStatus": "unread"
+        },
+        "options": {
+          "downloadAttachments": false
+        }
+      },
+      "id": "c107e526-80c0-4b8b-93b3-23f46b2dc513",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -80,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "",
+          "cachedResultUrl": ""
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an AI Recruitment Assistant.\n\nClassify the email into one of these categories:\n\n- Job Offer\n- Interview Invitation\n- Recruiter Outreach\n- Application Update\n- Online Assessment\n- Coding Test\n- Hiring Process\n- Rejection\n- Not Job Related\n\nIgnore newsletters, advertisements, spam, marketing emails, receipts and social notifications. Treat all of these as \"Not Job Related\" with isJobRelated = false.\n\nThe summaryArabic and actionRequiredArabic fields MUST be written in Arabic.\n\nReturn JSON only:\n\n{\n\"isJobRelated\": true,\n\"category\": \"\",\n\"importance\": \"High\",\n\"company\": \"\",\n\"position\": \"\",\n\"deadline\": \"\",\n\"summaryArabic\": \"\",\n\"actionRequiredArabic\": \"\"\n}"
+            },
+            {
+              "content": "=Analyze the following email.\n\nSubject: {{ $json.subject }}\nFrom: {{ $json.from }}\nDate: {{ $json.date }}\n\nBody:\n{{ $json.text || $json.textAsHtml || $json.snippet }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "maxTokens": 800,
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          }
+        }
+      },
+      "id": "e441d687-8ba7-40aa-84e2-7bb19b580f79",
+      "name": "AI Recruitment Analysis",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        96,
+        0
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "job-related",
+              "leftValue": "={{ $json.output[0].content[0].text.isJobRelated }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "52142e66-2c40-4810-b96c-b1652265f5d4",
+      "name": "Is Job Related?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        416,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_CHAT_ID",
+        "text": "=🚨 فرصة وظيفية جديدة\n\nالشركة: {{ $('AI Recruitment Analysis').item.json.output[0].content[0].text.company }}\n\nالوظيفة: {{ $('AI Recruitment Analysis').item.json.output[0].content[0].text.position }}\n\nالتصنيف: {{ $('AI Recruitment Analysis').item.json.output[0].content[0].text.category }}\n\nالأهمية: {{ $('AI Recruitment Analysis').item.json.output[0].content[0].text.importance }}\n\nآخر موعد: {{ $('AI Recruitment Analysis').item.json.output[0].content[0].text.deadline }}\n\nملخص:\n{{ $('AI Recruitment Analysis').item.json.output[0].content[0].text.summaryArabic }}\n\nالإجراء المطلوب:\n{{ $('AI Recruitment Analysis').item.json.output[0].content[0].text.actionRequiredArabic }}\n\n------------------\n\nSubject:\n{{ $('Gmail Trigger').item.json.subject }}\n\nSender:\n{{ $('Gmail Trigger').item.json.from }}\n\nReceived:\n{{ $('Gmail Trigger').item.json.date }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "e42c56bd-b754-41e2-b4b2-2f046d36edfe",
+      "name": "Send Telegram Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        672,
+        0
+      ],
+      "webhookId": "a12451a8-309c-4614-b94b-a96beaaa3702",
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Recruitment Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Recruitment Analysis": {
+      "main": [
+        [
+          {
+            "node": "Is Job Related?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Job Related?": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "b8f0dfa9-2945-4981-b226-251792618a1b",
+  "meta": {
+    "instanceId": "f0ca08992a457307349c1f5fa7432b2716da3d221bf0f3783710c01e7e041d68"
+  },
+  "nodeGroups": [],
+  "id": "KYiNZCwNwVKcpJQm",
+  "tags": []
+}
